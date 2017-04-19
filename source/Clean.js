@@ -1,91 +1,84 @@
-/*jshint strict:false, undef:false, unused:false */
+import {
+    HIGHLIGHT_CLASS, COLOUR_CLASS, FONT_FAMILY_CLASS, FONT_SIZE_CLASS,
+    SHOW_TEXT, SHOW_ELEMENT, ELEMENT_NODE, TEXT_NODE, notWS,
+} from "./Constants.js";
+import TreeWalker from "./TreeWalker.js";
+import {
+    detach, empty, createElement, fixContainer, isLeaf, isInline,
+} from "./Node.js";
 
-var fontSizes = {
+const fontSizes = {
     1: 10,
     2: 13,
     3: 16,
     4: 18,
     5: 24,
     6: 32,
-    7: 48
+    7: 48,
 };
 
-var styleToSemantic = {
+const styleToSemantic = {
     backgroundColor: {
         regexp: notWS,
-        replace: function ( doc, colour ) {
-            return createElement( doc, 'SPAN', {
+        replace: ( doc, colour ) => createElement( doc, 'SPAN', {
                 'class': HIGHLIGHT_CLASS,
                 style: 'background-color:' + colour
-            });
-        }
+            }),
     },
     color: {
         regexp: notWS,
-        replace: function ( doc, colour ) {
-            return createElement( doc, 'SPAN', {
+        replace: ( doc, colour ) => createElement( doc, 'SPAN', {
                 'class': COLOUR_CLASS,
                 style: 'color:' + colour
-            });
-        }
+            }),
     },
     fontWeight: {
         regexp: /^bold|^700/i,
-        replace: function ( doc ) {
-            return createElement( doc, 'B' );
-        }
+        replace: doc => createElement( doc, 'B' ),
     },
     fontStyle: {
         regexp: /^italic/i,
-        replace: function ( doc ) {
-            return createElement( doc, 'I' );
-        }
+        replace: doc => createElement( doc, 'I' ),
     },
     fontFamily: {
         regexp: notWS,
-        replace: function ( doc, family ) {
-            return createElement( doc, 'SPAN', {
+        replace: ( doc, family ) => createElement( doc, 'SPAN', {
                 'class': FONT_FAMILY_CLASS,
                 style: 'font-family:' + family
-            });
-        }
+            }),
     },
     fontSize: {
         regexp: notWS,
-        replace: function ( doc, size ) {
-            return createElement( doc, 'SPAN', {
+        replace: ( doc, size ) => createElement( doc, 'SPAN', {
                 'class': FONT_SIZE_CLASS,
                 style: 'font-size:' + size
-            });
-        }
+            }),
     },
     textDecoration: {
         regexp: /^underline/i,
-        replace: function ( doc ) {
-            return createElement( doc, 'U' );
-        }
+        replace: doc => createElement( doc, 'U' ),
     }
 };
 
-var replaceWithTag = function ( tag ) {
-    return function ( node, parent ) {
-        var el = createElement( node.ownerDocument, tag );
+function replaceWithTag ( tag ) {
+    return ( node, parent ) => {
+        const el = createElement( node.ownerDocument, tag );
         parent.replaceChild( el, node );
         el.appendChild( empty( node ) );
         return el;
     };
-};
+}
 
-var replaceStyles = function ( node, parent ) {
-    var style = node.style;
-    var doc = node.ownerDocument;
-    var attr, converter, css, newTreeBottom, newTreeTop, el;
+function replaceStyles ( node, parent ) {
+    const style = node.style;
+    const doc = node.ownerDocument;
+    let newTreeBottom, newTreeTop;
 
-    for ( attr in styleToSemantic ) {
-        converter = styleToSemantic[ attr ];
-        css = style[ attr ];
+    for ( const attr in styleToSemantic ) {
+        const converter = styleToSemantic[ attr ];
+        const css = style[ attr ];
         if ( css && converter.regexp.test( css ) ) {
-            el = converter.replace( doc, css );
+            const el = converter.replace( doc, css );
             if ( !newTreeTop ) {
                 newTreeTop = el;
             }
@@ -107,24 +100,21 @@ var replaceStyles = function ( node, parent ) {
     }
 
     return newTreeBottom || node;
-};
+}
 
-var stylesRewriters = {
+const stylesRewriters = {
     P: replaceStyles,
     SPAN: replaceStyles,
     STRONG: replaceWithTag( 'B' ),
     EM: replaceWithTag( 'I' ),
     INS: replaceWithTag( 'U' ),
     STRIKE: replaceWithTag( 'S' ),
-    FONT: function ( node, parent ) {
-        var face = node.face,
-            size = node.size,
-            colour = node.color,
-            doc = node.ownerDocument,
-            fontSpan, sizeSpan, colourSpan,
-            newTreeBottom, newTreeTop;
+    FONT ( node, parent ) {
+        let { face, size, color } = node;
+        const doc = node.ownerDocument;
+        let newTreeBottom, newTreeTop;
         if ( face ) {
-            fontSpan = createElement( doc, 'SPAN', {
+            const fontSpan = createElement( doc, 'SPAN', {
                 'class': FONT_FAMILY_CLASS,
                 style: 'font-family:' + face
             });
@@ -132,7 +122,7 @@ var stylesRewriters = {
             newTreeBottom = fontSpan;
         }
         if ( size ) {
-            sizeSpan = createElement( doc, 'SPAN', {
+            const sizeSpan = createElement( doc, 'SPAN', {
                 'class': FONT_SIZE_CLASS,
                 style: 'font-size:' + fontSizes[ size ] + 'px'
             });
@@ -144,21 +134,21 @@ var stylesRewriters = {
             }
             newTreeBottom = sizeSpan;
         }
-        if ( colour && /^#?([\dA-F]{3}){1,2}$/i.test( colour ) ) {
-            if ( colour.charAt( 0 ) !== '#' ) {
-                colour = '#' + colour;
+        if ( color && /^#?([\dA-F]{3}){1,2}$/i.test( color ) ) {
+            if ( color.charAt( 0 ) !== '#' ) {
+                color = '#' + color;
             }
-            colourSpan = createElement( doc, 'SPAN', {
+            const colorSpan = createElement( doc, 'SPAN', {
                 'class': COLOUR_CLASS,
-                style: 'color:' + colour
+                style: 'color:' + color
             });
             if ( !newTreeTop ) {
-                newTreeTop = colourSpan;
+                newTreeTop = colorSpan;
             }
             if ( newTreeBottom ) {
-                newTreeBottom.appendChild( colourSpan );
+                newTreeBottom.appendChild( colorSpan );
             }
-            newTreeBottom = colourSpan;
+            newTreeBottom = colorSpan;
         }
         if ( !newTreeTop ) {
             newTreeTop = newTreeBottom = createElement( doc, 'SPAN' );
@@ -167,8 +157,8 @@ var stylesRewriters = {
         newTreeBottom.appendChild( empty( node ) );
         return newTreeBottom;
     },
-    TT: function ( node, parent ) {
-        var el = createElement( node.ownerDocument, 'SPAN', {
+    TT ( node, parent ) {
+        const el = createElement( node.ownerDocument, 'SPAN', {
             'class': FONT_FAMILY_CLASS,
             style: 'font-family:menlo,consolas,"courier new",monospace'
         });
@@ -178,13 +168,11 @@ var stylesRewriters = {
     }
 };
 
-var allowedBlock = /^(?:A(?:DDRESS|RTICLE|SIDE|UDIO)|BLOCKQUOTE|CAPTION|D(?:[DLT]|IV)|F(?:IGURE|IGCAPTION|OOTER)|H[1-6]|HEADER|L(?:ABEL|EGEND|I)|O(?:L|UTPUT)|P(?:RE)?|SECTION|T(?:ABLE|BODY|D|FOOT|H|HEAD|R)|COL(?:GROUP)?|UL)$/;
+const allowedBlock = /^(?:A(?:DDRESS|RTICLE|SIDE|UDIO)|BLOCKQUOTE|CAPTION|D(?:[DLT]|IV)|F(?:IGURE|IGCAPTION|OOTER)|H[1-6]|HEADER|L(?:ABEL|EGEND|I)|O(?:L|UTPUT)|P(?:RE)?|SECTION|T(?:ABLE|BODY|D|FOOT|H|HEAD|R)|COL(?:GROUP)?|UL)$/;
 
-var blacklist = /^(?:HEAD|META|STYLE)/;
+const blacklist = /^(?:HEAD|META|STYLE)/;
 
-var walker = new TreeWalker( null, SHOW_TEXT|SHOW_ELEMENT, function () {
-    return true;
-});
+const walker = new TreeWalker( null, SHOW_TEXT|SHOW_ELEMENT, () => true );
 
 /*
     Two purposes:
@@ -193,24 +181,20 @@ var walker = new TreeWalker( null, SHOW_TEXT|SHOW_ELEMENT, function () {
        and whitespace nodes.
     2. Convert inline tags into our preferred format.
 */
-var cleanTree = function cleanTree ( node, preserveWS ) {
-    var children = node.childNodes,
-        nonInlineParent, i, l, child, nodeName, nodeType, rewriter, childLength,
-        startsWithWS, endsWithWS, data, sibling;
-
-    nonInlineParent = node;
+export function cleanTree ( node, preserveWS ) {
+    let nonInlineParent = node;
     while ( isInline( nonInlineParent ) ) {
         nonInlineParent = nonInlineParent.parentNode;
     }
     walker.root = nonInlineParent;
 
-    for ( i = 0, l = children.length; i < l; i += 1 ) {
-        child = children[i];
-        nodeName = child.nodeName;
-        nodeType = child.nodeType;
-        rewriter = stylesRewriters[ nodeName ];
+    const children = node.childNodes;
+    for ( let i = 0, l = children.length; i < l; i += 1 ) {
+        let child = children[i];
+        let { nodeName, nodeType } = child;
+        const rewriter = stylesRewriters[ nodeName ];
         if ( nodeType === ELEMENT_NODE ) {
-            childLength = child.childNodes.length;
+            const childLength = child.childNodes.length;
             if ( rewriter ) {
                 child = rewriter( child, node );
             } else if ( blacklist.test( nodeName ) ) {
@@ -229,9 +213,11 @@ var cleanTree = function cleanTree ( node, preserveWS ) {
             }
         } else {
             if ( nodeType === TEXT_NODE ) {
-                data = child.data;
-                startsWithWS = !notWS.test( data.charAt( 0 ) );
-                endsWithWS = !notWS.test( data.charAt( data.length - 1 ) );
+                let data = child.data;
+                let sibling;
+                const startsWithWS = !notWS.test( data.charAt( 0 ) );
+                const endsWithWS = !notWS.test( data.charAt(
+                        data.length - 1 ) );
                 if ( preserveWS || ( !startsWithWS && !endsWithWS ) ) {
                     continue;
                 }
@@ -279,16 +265,15 @@ var cleanTree = function cleanTree ( node, preserveWS ) {
         }
     }
     return node;
-};
+}
 
 // ---
 
-var removeEmptyInlines = function removeEmptyInlines ( node ) {
-    var children = node.childNodes,
-        l = children.length,
-        child;
+export function removeEmptyInlines ( node ) {
+    const children = node.childNodes;
+    let l = children.length;
     while ( l-- ) {
-        child = children[l];
+        const child = children[l];
         if ( child.nodeType === ELEMENT_NODE && !isLeaf( child ) ) {
             removeEmptyInlines( child );
             if ( isInline( child ) && !child.firstChild ) {
@@ -298,27 +283,26 @@ var removeEmptyInlines = function removeEmptyInlines ( node ) {
             node.removeChild( child );
         }
     }
-};
+}
 
 // ---
 
-var notWSTextNode = function ( node ) {
+function notWSTextNode ( node ) {
     return node.nodeType === ELEMENT_NODE ?
         node.nodeName === 'BR' :
         notWS.test( node.data );
-};
-var isLineBreak = function ( br, isLBIfEmptyBlock ) {
-    var block = br.parentNode;
-    var walker;
+}
+function isLineBreak ( br, isLBIfEmptyBlock ) {
+    let block = br.parentNode;
     while ( isInline( block ) ) {
         block = block.parentNode;
     }
-    walker = new TreeWalker(
+    const walker = new TreeWalker(
         block, SHOW_ELEMENT|SHOW_TEXT, notWSTextNode );
     walker.currentNode = br;
     return !!walker.nextNode() ||
         ( isLBIfEmptyBlock && !walker.previousNode() );
-};
+}
 
 // <br> elements are treated specially, and differently depending on the
 // browser, when in rich text editor mode. When adding HTML from external
@@ -326,24 +310,23 @@ var isLineBreak = function ( br, isLBIfEmptyBlock ) {
 // line breaks by wrapping the inline text in a <div>. Browsers that want <br>
 // elements at the end of each block will then have them added back in a later
 // fixCursor method call.
-var cleanupBRs = function ( node, root, keepForBlankLine ) {
-    var brs = node.querySelectorAll( 'BR' );
-    var brBreaksLine = [];
-    var l = brs.length;
-    var i, br, parent;
+export function cleanupBRs ( node, root, keepForBlankLine ) {
+    const brs = node.querySelectorAll( 'BR' );
+    const brBreaksLine = [];
+    let l = brs.length;
 
     // Must calculate whether the <br> breaks a line first, because if we
     // have two <br>s next to each other, after the first one is converted
     // to a block split, the second will be at the end of a block and
     // therefore seem to not be a line break. But in its original context it
     // was, so we should also convert it to a block split.
-    for ( i = 0; i < l; i += 1 ) {
+    for ( let i = 0; i < l; i += 1 ) {
         brBreaksLine[i] = isLineBreak( brs[i], keepForBlankLine );
     }
     while ( l-- ) {
-        br = brs[l];
+        const br = brs[l];
         // Cleanup may have removed it
-        parent = br.parentNode;
+        const parent = br.parentNode;
         if ( !parent ) { continue; }
         // If it doesn't break a line, just remove it; it's not doing
         // anything useful. We'll add it back later if required by the
@@ -355,4 +338,4 @@ var cleanupBRs = function ( node, root, keepForBlankLine ) {
             fixContainer( parent, root );
         }
     }
-};
+}

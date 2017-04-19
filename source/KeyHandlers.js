@@ -1,6 +1,26 @@
-/*jshint strict:false, undef:false, unused:false */
+import {
+    isPresto, isMac, isGecko, ctrlKey, ZWS, indexOf, ELEMENT_NODE, TEXT_NODE,
+} from "./Constants.js";
+import {
+    getPreviousBlock, getNextBlock, getNearest, getLength, detach, replaceWith,
+    fixCursor, fixContainer, mergeWithBlock, mergeContainers,
+    isInline, isBlock,
+} from "./Node.js";
+import {
+    insertNodeInRange, deleteContentsOfRange,
+    moveRangeBoundariesDownTree, moveRangeBoundariesUpTree,
+    getStartBlockOfRange,
+    rangeDoesStartAtBlockBoundary, rangeDoesEndAtBlockBoundary,
+} from "./Range.js";
+import { removeEmptyInlines } from "./Clean.js";
+// FIXME(modulify): cyclical dependencies here; not *necessarily* a problem,
+// but we should prefer to remove it if we can. (And first verify that it’s not
+// going to blow things up.)
+import {
+    getWindowSelection, removeZWS, splitBlock, removeBlockQuote, addLinks,
+} from "./Editor.js";
 
-var keys = {
+const keys = {
     8: 'backspace',
     9: 'tab',
     13: 'enter',
@@ -11,19 +31,18 @@ var keys = {
     39: 'right',
     46: 'delete',
     219: '[',
-    221: ']'
+    221: ']',
 };
 
 // Ref: http://unixpapa.com/js/key.html
-var onKey = function ( event ) {
-    var code = event.keyCode,
-        key = keys[ code ],
-        modifiers = '',
-        range = this.getSelection();
-
+export function onKey ( event ) {
     if ( event.defaultPrevented ) {
         return;
     }
+
+    const code = event.keyCode;
+    let key = keys[ code ];
+    const range = this.getSelection();
 
     if ( !key ) {
         key = String.fromCharCode( code ).toLowerCase();
@@ -46,6 +65,7 @@ var onKey = function ( event ) {
 
     // We need to apply the backspace/delete handlers regardless of
     // control key modifiers.
+    let modifiers = '';
     if ( key !== 'backspace' && key !== 'delete' ) {
         if ( event.altKey  ) { modifiers += 'alt-'; }
         if ( event.ctrlKey ) { modifiers += 'ctrl-'; }
@@ -68,43 +88,42 @@ var onKey = function ( event ) {
         this.setSelection( range );
         this._updatePath( range, true );
     }
-};
+}
 
-var mapKeyTo = function ( method ) {
-    return function ( self, event ) {
+function mapKeyTo ( method ) {
+    return ( self, event ) => {
         event.preventDefault();
         self[ method ]();
     };
-};
+}
 
-var mapKeyToFormat = function ( tag, remove ) {
+function mapKeyToFormat ( tag, remove ) {
     remove = remove || null;
-    return function ( self, event ) {
+    return ( self, event ) => {
         event.preventDefault();
-        var range = self.getSelection();
+        const range = self.getSelection();
         if ( self.hasFormat( tag, null, range ) ) {
             self.changeFormat( null, { tag: tag }, range );
         } else {
             self.changeFormat( { tag: tag }, remove, range );
         }
     };
-};
+}
 
 // If you delete the content inside a span with a font styling, Webkit will
 // replace it with a <font> tag (!). If you delete all the text inside a
 // link in Opera, it won't delete the link. Let's make things consistent. If
 // you delete all text inside an inline tag, remove the inline tag.
-var afterDelete = function ( self, range ) {
+function afterDelete ( self, range ) {
     try {
         if ( !range ) { range = self.getSelection(); }
-        var node = range.startContainer,
-            parent;
+        let node = range.startContainer;
         // Climb the tree from the focus point while we are inside an empty
         // inline element
         if ( node.nodeType === TEXT_NODE ) {
             node = node.parentNode;
         }
-        parent = node;
+        let parent = node;
         while ( isInline( parent ) &&
                 ( !parent.textContent || parent.textContent === ZWS ) ) {
             node = parent;
@@ -140,13 +159,10 @@ var afterDelete = function ( self, range ) {
     } catch ( error ) {
         self.didError( error );
     }
-};
+}
 
-var keyHandlers = {
-    enter: function ( self, event, range ) {
-        var root = self._root;
-        var block, parent, nodeAfterSplit;
-
+export const keyHandlers = {
+    enter( self, event, range ) {
         // We handle this ourselves
         event.preventDefault();
 
@@ -154,6 +170,7 @@ var keyHandlers = {
         // Remove any zws so we don't think there's content in an empty
         // block.
         self._recordUndoState( range );
+        const root = self._root;
         addLinks( range.startContainer, root, self );
         self._removeZWS();
         self._getRangeAndRemoveBookmark( range );
@@ -164,13 +181,13 @@ var keyHandlers = {
             deleteContentsOfRange( range, root );
         }
 
-        block = getStartBlockOfRange( range, root );
+        let block = getStartBlockOfRange( range, root );
 
         // If this is a malformed bit of document or in a table;
         // just play it safe and insert a <br>.
         if ( !block || /^T[HD]$/.test( block.nodeName ) ) {
             // If inside an <a>, move focus out
-            parent = getNearest( range.endContainer, root, 'A' );
+            let parent = getNearest( range.endContainer, root, 'A' );
             if ( parent ) {
                 parent = parent.parentNode;
                 moveRangeBoundariesUpTree( range, parent, parent, root );
@@ -184,7 +201,8 @@ var keyHandlers = {
         }
 
         // If in a list, we'll split the LI instead.
-        if ( parent = getNearest( block, root, 'LI' ) ) {
+        const parent = getNearest( block, root, 'LI' );
+        if ( parent ) {
             block = parent;
         }
 
@@ -192,7 +210,7 @@ var keyHandlers = {
             // Break list
             if ( getNearest( block, root, 'UL' ) ||
                     getNearest( block, root, 'OL' ) ) {
-                return self.modifyBlocks( decreaseListLevel, range );
+                return self.decreaseListLevel( range, false );
             }
             // Break blockquote
             else if ( getNearest( block, root, 'BLOCKQUOTE' ) ) {
@@ -201,7 +219,7 @@ var keyHandlers = {
         }
 
         // Otherwise, split at cursor point.
-        nodeAfterSplit = splitBlock( self, block,
+        let nodeAfterSplit = splitBlock( self, block,
             range.startContainer, range.startOffset );
 
         // Clean up any empty inlines if we hit enter at the beginning of the
@@ -214,8 +232,7 @@ var keyHandlers = {
         // If there's a <b>/<i> etc. at the beginning of the split
         // make sure we focus inside it.
         while ( nodeAfterSplit.nodeType === ELEMENT_NODE ) {
-            var child = nodeAfterSplit.firstChild,
-                next;
+            let child = nodeAfterSplit.firstChild;
 
             // Don't continue links over a block break; unlikely to be the
             // desired outcome.
@@ -229,7 +246,7 @@ var keyHandlers = {
             }
 
             while ( child && child.nodeType === TEXT_NODE && !child.data ) {
-                next = child.nextSibling;
+                const next = child.nextSibling;
                 if ( !next || next.nodeName === 'BR' ) {
                     break;
                 }
@@ -250,8 +267,8 @@ var keyHandlers = {
         self.setSelection( range );
         self._updatePath( range, true );
     },
-    backspace: function ( self, event, range ) {
-        var root = self._root;
+    backspace( self, event, range ) {
+        const root = self._root;
         self._removeZWS();
         // Record undo checkpoint.
         self.saveUndoState( range );
@@ -264,15 +281,14 @@ var keyHandlers = {
         // If at beginning of block, merge with previous
         else if ( rangeDoesStartAtBlockBoundary( range, root ) ) {
             event.preventDefault();
-            var current = getStartBlockOfRange( range, root );
-            var previous;
+            let current = getStartBlockOfRange( range, root );
             if ( !current ) {
                 return;
             }
             // In case inline data has somehow got between blocks.
             fixContainer( current.parentNode, root );
             // Now get previous block
-            previous = getPreviousBlock( current, root );
+            const previous = getPreviousBlock( current, root );
             // Must not be at the very beginning of the text area.
             if ( previous ) {
                 // If not editable, just delete whole block.
@@ -299,11 +315,11 @@ var keyHandlers = {
                 // Break list
                 if ( getNearest( current, root, 'UL' ) ||
                         getNearest( current, root, 'OL' ) ) {
-                    return self.modifyBlocks( decreaseListLevel, range );
+                    return self.decreaseListLevel( range, false );
                 }
                 // Break blockquote
                 else if ( getNearest( current, root, 'BLOCKQUOTE' ) ) {
-                    return self.modifyBlocks( decreaseBlockQuoteLevel, range );
+                    return self.decreaseBlockQuoteLevel( range, false );
                 }
                 self.setSelection( range );
                 self._updatePath( range, true );
@@ -313,13 +329,11 @@ var keyHandlers = {
         // left behind an empty inline tag.
         else {
             self.setSelection( range );
-            setTimeout( function () { afterDelete( self ); }, 0 );
+            setTimeout( () => afterDelete( self ), 0 );
         }
     },
-    'delete': function ( self, event, range ) {
-        var root = self._root;
-        var current, next, originalRange,
-            cursorContainer, cursorOffset, nodeAfterCursor;
+    'delete'( self, event, range ) {
+        const root = self._root;
         self._removeZWS();
         // Record undo checkpoint.
         self.saveUndoState( range );
@@ -332,14 +346,14 @@ var keyHandlers = {
         // If at end of block, merge next into this block
         else if ( rangeDoesEndAtBlockBoundary( range, root ) ) {
             event.preventDefault();
-            current = getStartBlockOfRange( range, root );
+            const current = getStartBlockOfRange( range, root );
             if ( !current ) {
                 return;
             }
             // In case inline data has somehow got between blocks.
             fixContainer( current.parentNode, root );
             // Now get next block
-            next = getNextBlock( current, root );
+            let next = getNextBlock( current, root );
             // Must not be at the very end of the text area.
             if ( next ) {
                 // If not editable, just delete whole block.
@@ -368,12 +382,13 @@ var keyHandlers = {
             // But first check if the cursor is just before an IMG tag. If so,
             // delete it ourselves, because the browser won't if it is not
             // inline.
-            originalRange = range.cloneRange();
+            const originalRange = range.cloneRange();
             moveRangeBoundariesUpTree( range, root, root, root );
-            cursorContainer = range.endContainer;
-            cursorOffset = range.endOffset;
+            const cursorContainer = range.endContainer;
+            const cursorOffset = range.endOffset;
             if ( cursorContainer.nodeType === ELEMENT_NODE ) {
-                nodeAfterCursor = cursorContainer.childNodes[ cursorOffset ];
+                const nodeAfterCursor = cursorContainer.childNodes[
+                    cursorOffset ];
                 if ( nodeAfterCursor && nodeAfterCursor.nodeName === 'IMG' ) {
                     event.preventDefault();
                     detach( nodeAfterCursor );
@@ -383,46 +398,44 @@ var keyHandlers = {
                 }
             }
             self.setSelection( originalRange );
-            setTimeout( function () { afterDelete( self ); }, 0 );
+            setTimeout( () => afterDelete( self ), 0 );
         }
     },
-    tab: function ( self, event, range ) {
-        var root = self._root;
-        var node, parent;
+    tab( self, event, range ) {
+        const root = self._root;
         self._removeZWS();
         // If no selection and at start of block
         if ( range.collapsed && rangeDoesStartAtBlockBoundary( range, root ) ) {
-            node = getStartBlockOfRange( range, root );
+            let node = getStartBlockOfRange( range, root );
             // Iterate through the block's parents
+            let parent;
             while ( parent = node.parentNode ) {
                 // If we find a UL or OL (so are in a list, node must be an LI)
                 if ( parent.nodeName === 'UL' || parent.nodeName === 'OL' ) {
                     // Then increase the list level
                     event.preventDefault();
-                    self.modifyBlocks( increaseListLevel, range );
+                    self.increaseListLevel( range, false );
                     break;
                 }
                 node = parent;
             }
         }
     },
-    'shift-tab': function ( self, event, range ) {
-        var root = self._root;
-        var node;
+    'shift-tab'( self, event, range ) {
+        const root = self._root;
         self._removeZWS();
         // If no selection and at start of block
         if ( range.collapsed && rangeDoesStartAtBlockBoundary( range, root ) ) {
             // Break list
-            node = range.startContainer;
+            const node = range.startContainer;
             if ( getNearest( node, root, 'UL' ) ||
                     getNearest( node, root, 'OL' ) ) {
                 event.preventDefault();
-                self.modifyBlocks( decreaseListLevel, range );
+                self.decreaseListLevel( range, false );
             }
         }
     },
-    space: function ( self, _, range ) {
-        var node, parent;
+    space( self, _, range ) {
         self._recordUndoState( range );
         addLinks( range.startContainer, self._root, self );
         self._getRangeAndRemoveBookmark( range );
@@ -430,8 +443,8 @@ var keyHandlers = {
         // If the cursor is at the end of a link (<a>foo|</a>) then move it
         // outside of the link (<a>foo</a>|) so that the space is not part of
         // the link text.
-        node = range.endContainer;
-        parent = node.parentNode;
+        const node = range.endContainer;
+        const parent = node.parentNode;
         if ( range.collapsed && parent.nodeName === 'A' &&
                 !node.nextSibling && range.endOffset === getLength( node ) ) {
             range.setStartAfter( parent );
@@ -446,10 +459,10 @@ var keyHandlers = {
 
         self.setSelection( range );
     },
-    left: function ( self ) {
+    left( self ) {
         self._removeZWS();
     },
-    right: function ( self ) {
+    right( self ) {
         self._removeZWS();
     }
 };
@@ -459,16 +472,16 @@ var keyHandlers = {
 // thing.
 // https://bugzilla.mozilla.org/show_bug.cgi?id=289384
 if ( isMac && isGecko ) {
-    keyHandlers[ 'meta-left' ] = function ( self, event ) {
+    keyHandlers[ 'meta-left' ] = ( self, event ) => {
         event.preventDefault();
-        var sel = getWindowSelection( self );
+        const sel = getWindowSelection( self );
         if ( sel && sel.modify ) {
             sel.modify( 'move', 'backward', 'lineboundary' );
         }
     };
-    keyHandlers[ 'meta-right' ] = function ( self, event ) {
+    keyHandlers[ 'meta-right' ] = ( self, event ) => {
         event.preventDefault();
-        var sel = getWindowSelection( self );
+        const sel = getWindowSelection( self );
         if ( sel && sel.modify ) {
             sel.modify( 'move', 'forward', 'lineboundary' );
         }
@@ -479,12 +492,8 @@ if ( isMac && isGecko ) {
 // cursor. On Linux/Windows, it should move the cursor, but some browsers don't
 // implement this natively. Override to support it.
 if ( !isMac ) {
-    keyHandlers.pageup = function ( self ) {
-        self.moveCursorToStart();
-    };
-    keyHandlers.pagedown = function ( self ) {
-        self.moveCursorToEnd();
-    };
+    keyHandlers.pageup = self => self.moveCursorToStart();
+    keyHandlers.pagedown = self => self.moveCursorToEnd();
 }
 
 keyHandlers[ ctrlKey + 'b' ] = mapKeyToFormat( 'B' );

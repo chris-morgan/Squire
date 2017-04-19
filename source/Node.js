@@ -1,8 +1,13 @@
-/*jshint strict:false, undef:false, unused:false */
+import {
+    ELEMENT_NODE, TEXT_NODE, DOCUMENT_FRAGMENT_NODE, SHOW_ELEMENT,
+    HIGHLIGHT_CLASS, COLOUR_CLASS, FONT_FAMILY_CLASS, FONT_SIZE_CLASS,
+    cantFocusEmptyTextNodes, useTextFixer, isPresto, ZWS, canWeakMap,
+} from "./Constants.js";
+import TreeWalker from "./TreeWalker.js";
 
-var inlineNodeNames  = /^(?:#text|A(?:BBR|CRONYM)?|B(?:R|D[IO])?|C(?:ITE|ODE)|D(?:ATA|EL|FN)|EM|FONT|HR|I(?:FRAME|MG|NPUT|NS)?|KBD|Q|R(?:P|T|UBY)|S(?:AMP|MALL|PAN|TR(?:IKE|ONG)|U[BP])?|TIME|U|VAR|WBR)$/;
+const inlineNodeNames  = /^(?:#text|A(?:BBR|CRONYM)?|B(?:R|D[IO])?|C(?:ITE|ODE)|D(?:ATA|EL|FN)|EM|FONT|HR|I(?:FRAME|MG|NPUT|NS)?|KBD|Q|R(?:P|T|UBY)|S(?:AMP|MALL|PAN|TR(?:IKE|ONG)|U[BP])?|TIME|U|VAR|WBR)$/;
 
-var leafNodeNames = {
+export const leafNodeNames = {
     BR: 1,
     HR: 1,
     IFRAME: 1,
@@ -11,7 +16,7 @@ var leafNodeNames = {
 };
 
 function every ( nodeList, fn ) {
-    var l = nodeList.length;
+    let l = nodeList.length;
     while ( l-- ) {
         if ( !fn( nodeList[l] ) ) {
             return false;
@@ -22,14 +27,20 @@ function every ( nodeList, fn ) {
 
 // ---
 
-var UNKNOWN = 0;
-var INLINE = 1;
-var BLOCK = 2;
-var CONTAINER = 3;
+const UNKNOWN = 0;
+const INLINE = 1;
+const BLOCK = 2;
+const CONTAINER = 3;
 
-var nodeCategoryCache = canWeakMap ? new WeakMap() : null;
+let nodeCategoryCache;
 
-function isLeaf ( node ) {
+export function clearNodeCategoryCache() {
+    nodeCategoryCache = canWeakMap ? new WeakMap() : null;
+}
+
+clearNodeCategoryCache();
+
+export function isLeaf ( node ) {
     return node.nodeType === ELEMENT_NODE && !!leafNodeNames[ node.nodeName ];
 }
 function getNodeCategory ( node ) {
@@ -46,7 +57,7 @@ function getNodeCategory ( node ) {
         return UNKNOWN;
     }
 
-    var nodeCategory;
+    let nodeCategory;
     if ( !every( node.childNodes, isInline ) ) {
         // Malformed HTML can have block tags inside inline tags. Need to treat
         // these as containers rather than inline. See #239.
@@ -61,31 +72,31 @@ function getNodeCategory ( node ) {
     }
     return nodeCategory;
 }
-function isInline ( node ) {
+export function isInline ( node ) {
     return getNodeCategory( node ) === INLINE;
 }
-function isBlock ( node ) {
+export function isBlock ( node ) {
     return getNodeCategory( node ) === BLOCK;
 }
-function isContainer ( node ) {
+export function isContainer ( node ) {
     return getNodeCategory( node ) === CONTAINER;
 }
 
-function getBlockWalker ( node, root ) {
-    var walker = new TreeWalker( root, SHOW_ELEMENT, isBlock );
+export function getBlockWalker ( node, root ) {
+    const walker = new TreeWalker( root, SHOW_ELEMENT, isBlock );
     walker.currentNode = node;
     return walker;
 }
-function getPreviousBlock ( node, root ) {
+export function getPreviousBlock ( node, root ) {
     node = getBlockWalker( node, root ).previousNode();
     return node !== root ? node : null;
 }
-function getNextBlock ( node, root ) {
+export function getNextBlock ( node, root ) {
     node = getBlockWalker( node, root ).nextNode();
     return node !== root ? node : null;
 }
 
-function areAlike ( node, node2 ) {
+export function areAlike ( node, node2 ) {
     return !isLeaf( node ) && (
         node.nodeType === node2.nodeType &&
         node.nodeName === node2.nodeName &&
@@ -95,18 +106,18 @@ function areAlike ( node, node2 ) {
           node.style.cssText === node2.style.cssText )
     );
 }
-function hasTagAttributes ( node, tag, attributes ) {
+export function hasTagAttributes ( node, tag, attributes ) {
     if ( node.nodeName !== tag ) {
         return false;
     }
-    for ( var attr in attributes ) {
+    for ( const attr in attributes ) {
         if ( node.getAttribute( attr ) !== attributes[ attr ] ) {
             return false;
         }
     }
     return true;
 }
-function getNearest ( node, root, tag, attributes ) {
+export function getNearest ( node, root, tag, attributes ) {
     while ( node && node !== root ) {
         if ( hasTagAttributes( node, tag, attributes ) ) {
             return node;
@@ -115,7 +126,7 @@ function getNearest ( node, root, tag, attributes ) {
     }
     return null;
 }
-function isOrContains ( parent, node ) {
+export function isOrContains ( parent, node ) {
     while ( node ) {
         if ( node === parent ) {
             return true;
@@ -125,39 +136,42 @@ function isOrContains ( parent, node ) {
     return false;
 }
 
-function getPath ( node, root ) {
-    var path = '';
-    var id, className, classNames, dir;
+export function getPath ( node, root ) {
+    let path = '';
     if ( node && node !== root ) {
         path = getPath( node.parentNode, root );
         if ( node.nodeType === ELEMENT_NODE ) {
             path += ( path ? '>' : '' ) + node.nodeName;
-            if ( id = node.id ) {
+            const id = node.id;
+            if ( id ) {
                 path += '#' + id;
             }
-            if ( className = node.className.trim() ) {
+            let classNames;
+            const className = node.className.trim();
+            if ( className ) {
                 classNames = className.split( /\s\s*/ );
                 classNames.sort();
                 path += '.';
                 path += classNames.join( '.' );
             }
-            if ( dir = node.dir ) {
+            const dir = node.dir;
+            if ( dir ) {
                 path += '[dir=' + dir + ']';
             }
             if ( classNames ) {
-                if ( indexOf.call( classNames, HIGHLIGHT_CLASS ) > -1 ) {
+                if ( classNames.indexOf( HIGHLIGHT_CLASS ) > -1 ) {
                     path += '[backgroundColor=' +
                         node.style.backgroundColor.replace( / /g,'' ) + ']';
                 }
-                if ( indexOf.call( classNames, COLOUR_CLASS ) > -1 ) {
+                if ( classNames.indexOf( COLOUR_CLASS ) > -1 ) {
                     path += '[color=' +
                         node.style.color.replace( / /g,'' ) + ']';
                 }
-                if ( indexOf.call( classNames, FONT_FAMILY_CLASS ) > -1 ) {
+                if ( classNames.indexOf( FONT_FAMILY_CLASS ) > -1 ) {
                     path += '[fontFamily=' +
                         node.style.fontFamily.replace( / /g,'' ) + ']';
                 }
-                if ( indexOf.call( classNames, FONT_SIZE_CLASS ) > -1 ) {
+                if ( classNames.indexOf( FONT_SIZE_CLASS ) > -1 ) {
                     path += '[fontSize=' + node.style.fontSize + ']';
                 }
             }
@@ -166,67 +180,65 @@ function getPath ( node, root ) {
     return path;
 }
 
-function getLength ( node ) {
-    var nodeType = node.nodeType;
-    return nodeType === ELEMENT_NODE ?
+export function getLength ( node ) {
+    return node.nodeType === ELEMENT_NODE ?
         node.childNodes.length : node.length || 0;
 }
 
-function detach ( node ) {
-    var parent = node.parentNode;
+export function detach ( node ) {
+    const parent = node.parentNode;
     if ( parent ) {
         parent.removeChild( node );
     }
     return node;
 }
-function replaceWith ( node, node2 ) {
-    var parent = node.parentNode;
+export function replaceWith ( node, node2 ) {
+    const parent = node.parentNode;
     if ( parent ) {
         parent.replaceChild( node2, node );
     }
 }
-function empty ( node ) {
-    var frag = node.ownerDocument.createDocumentFragment(),
-        childNodes = node.childNodes,
-        l = childNodes ? childNodes.length : 0;
+export function empty ( node ) {
+    const frag = node.ownerDocument.createDocumentFragment();
+    const childNodes = node.childNodes;
+    let l = childNodes ? childNodes.length : 0;
     while ( l-- ) {
         frag.appendChild( node.firstChild );
     }
     return frag;
 }
 
-function createElement ( doc, tag, props, children ) {
-    var el = doc.createElement( tag ),
-        attr, value, i, l;
+export function createElement ( doc, tag, props, children ) {
+    const el = doc.createElement( tag );
     if ( props instanceof Array ) {
         children = props;
         props = null;
     }
     if ( props ) {
-        for ( attr in props ) {
-            value = props[ attr ];
+        for ( const attr in props ) {
+            const value = props[ attr ];
             if ( value !== undefined ) {
                 el.setAttribute( attr, props[ attr ] );
             }
         }
     }
     if ( children ) {
-        for ( i = 0, l = children.length; i < l; i += 1 ) {
+        for ( let i = 0, l = children.length; i < l; i += 1 ) {
             el.appendChild( children[i] );
         }
     }
     return el;
 }
 
-function fixCursor ( node, root ) {
+export function fixCursor ( node, root ) {
     // In Webkit and Gecko, block level elements are collapsed and
     // unfocussable if they have no content. To remedy this, a <BR> must be
     // inserted. In Opera and IE, we just need a textnode in order for the
     // cursor to appear.
-    var self = root.__squire__;
-    var doc = node.ownerDocument;
-    var originalNode = node;
-    var fixer, child;
+    const self = root.__squire__;
+    const doc = node.ownerDocument;
+    const originalNode = node;
+    let fixer, child;
 
     if ( node === root ) {
         if ( !( child = node.firstChild ) || child.nodeName === 'BR' ) {
@@ -304,16 +316,15 @@ function fixCursor ( node, root ) {
 }
 
 // Recursively examine container nodes and wrap any inline children.
-function fixContainer ( container, root ) {
-    var children = container.childNodes;
-    var doc = container.ownerDocument;
-    var wrapper = null;
-    var i, l, child, isBR;
-    var config = root.__squire__._config;
+export function fixContainer ( container, root ) {
+    const children = container.childNodes;
+    const doc = container.ownerDocument;
+    let wrapper = null;
+    const config = root.__squire__._config;
 
-    for ( i = 0, l = children.length; i < l; i += 1 ) {
-        child = children[i];
-        isBR = child.nodeName === 'BR';
+    for ( let i = 0, l = children.length; i < l; i += 1 ) {
+        const child = children[i];
+        const isBR = child.nodeName === 'BR';
         if ( !isBR && isInline( child ) ) {
             if ( !wrapper ) {
                  wrapper = createElement( doc,
@@ -347,9 +358,8 @@ function fixContainer ( container, root ) {
     return container;
 }
 
-function split ( node, offset, stopNode, root ) {
-    var nodeType = node.nodeType,
-        parent, clone, next;
+export function split ( node, offset, stopNode, root ) {
+    const nodeType = node.nodeType;
     if ( nodeType === TEXT_NODE && node !== stopNode ) {
         return split(
             node.parentNode, node.splitText( offset ), stopNode, root );
@@ -364,8 +374,9 @@ function split ( node, offset, stopNode, root ) {
         }
 
         // Clone node without children
-        parent = node.parentNode;
-        clone = node.cloneNode( false );
+        const parent = node.parentNode;
+        const clone = node.cloneNode( false );
+        let next;
 
         // Add right-hand siblings to the clone
         while ( offset ) {
@@ -401,13 +412,12 @@ function split ( node, offset, stopNode, root ) {
 }
 
 function _mergeInlines ( node, fakeRange ) {
-    var children = node.childNodes,
-        l = children.length,
-        frags = [],
-        child, prev, len;
+    const children = node.childNodes;
+    let l = children.length;
+    const frags = [];
     while ( l-- ) {
-        child = children[l];
-        prev = l && children[ l - 1 ];
+        const child = children[l];
+        const prev = l && children[ l - 1 ];
         if ( l && isInline( child ) && areAlike( child, prev ) &&
                 !leafNodeNames[ child.nodeName ] ) {
             if ( fakeRange.startContainer === child ) {
@@ -445,7 +455,7 @@ function _mergeInlines ( node, fakeRange ) {
             }
         }
         else if ( child.nodeType === ELEMENT_NODE ) {
-            len = frags.length;
+            let len = frags.length;
             while ( len-- ) {
                 child.appendChild( frags.pop() );
             }
@@ -454,35 +464,30 @@ function _mergeInlines ( node, fakeRange ) {
     }
 }
 
-function mergeInlines ( node, range ) {
+export function mergeInlines ( node, range ) {
     if ( node.nodeType === TEXT_NODE ) {
         node = node.parentNode;
     }
     if ( node.nodeType === ELEMENT_NODE ) {
-        var fakeRange = {
-            startContainer: range.startContainer,
-            startOffset: range.startOffset,
-            endContainer: range.endContainer,
-            endOffset: range.endOffset
-        };
-        _mergeInlines( node, fakeRange );
-        range.setStart( fakeRange.startContainer, fakeRange.startOffset );
-        range.setEnd( fakeRange.endContainer, fakeRange.endOffset );
+        const { startContainer, startOffset, endContainer, endOffset } = range;
+        _mergeInlines( node, { startContainer, startOffset,
+                               endContainer, endOffset } );
+        range.setStart( startContainer, startOffset );
+        range.setEnd( endContainer, endOffset );
     }
 }
 
-function mergeWithBlock ( block, next, range ) {
-    var container = next,
-        last, offset;
+export function mergeWithBlock ( block, next, range ) {
+    let container = next;
     while ( container.parentNode.childNodes.length === 1 ) {
         container = container.parentNode;
     }
     detach( container );
 
-    offset = block.childNodes.length;
+    let offset = block.childNodes.length;
 
     // Remove extra <BR> fixer if present.
-    last = block.lastChild;
+    let last = block.lastChild;
     if ( last && last.nodeName === 'BR' ) {
         block.removeChild( last );
         offset -= 1;
@@ -507,12 +512,11 @@ function mergeWithBlock ( block, next, range ) {
     }
 }
 
-function mergeContainers ( node, root ) {
-    var prev = node.previousSibling,
-        first = node.firstChild,
-        doc = node.ownerDocument,
-        isListItem = ( node.nodeName === 'LI' ),
-        needsFix, block;
+export function mergeContainers ( node, root ) {
+    let prev = node.previousSibling;
+    const first = node.firstChild;
+    const doc = node.ownerDocument;
+    const isListItem = ( node.nodeName === 'LI' );
 
     // Do not merge LIs, unless it only contains a UL
     if ( isListItem && ( !first || !/^[OU]L$/.test( first.nodeName ) ) ) {
@@ -522,7 +526,7 @@ function mergeContainers ( node, root ) {
     if ( prev && areAlike( prev, node ) ) {
         if ( !isContainer( prev ) ) {
             if ( isListItem ) {
-                block = createElement( doc, 'DIV' );
+                const block = createElement( doc, 'DIV' );
                 block.appendChild( empty( prev ) );
                 prev.appendChild( block );
             } else {
@@ -530,7 +534,7 @@ function mergeContainers ( node, root ) {
             }
         }
         detach( node );
-        needsFix = !isContainer( node );
+        const needsFix = !isContainer( node );
         prev.appendChild( empty( node ) );
         if ( needsFix ) {
             fixContainer( prev, root );

@@ -1,7 +1,7 @@
 Makefile
-.jscsrc
-.jshintrc
 .gitignore
 .editorconfig
+.eslintrc.js
 bower.json
+rollup.config.js
 source/

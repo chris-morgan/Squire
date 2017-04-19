@@ -1,59 +1,57 @@
-/*jshint strict:false, undef:false, unused:false */
+export const DOCUMENT_POSITION_PRECEDING = 2; // Node.DOCUMENT_POSITION_PRECEDING
+export const ELEMENT_NODE = 1;                // Node.ELEMENT_NODE;
+export const TEXT_NODE = 3;                   // Node.TEXT_NODE;
+export const DOCUMENT_NODE = 9;               // Node.DOCUMENT_NODE;
+export const DOCUMENT_FRAGMENT_NODE = 11;     // Node.DOCUMENT_FRAGMENT_NODE;
+export const SHOW_ELEMENT = 1;                // NodeFilter.SHOW_ELEMENT;
+export const SHOW_TEXT = 4;                   // NodeFilter.SHOW_TEXT;
 
-var DOCUMENT_POSITION_PRECEDING = 2; // Node.DOCUMENT_POSITION_PRECEDING
-var ELEMENT_NODE = 1;                // Node.ELEMENT_NODE;
-var TEXT_NODE = 3;                   // Node.TEXT_NODE;
-var DOCUMENT_NODE = 9;               // Node.DOCUMENT_NODE;
-var DOCUMENT_FRAGMENT_NODE = 11;     // Node.DOCUMENT_FRAGMENT_NODE;
-var SHOW_ELEMENT = 1;                // NodeFilter.SHOW_ELEMENT;
-var SHOW_TEXT = 4;                   // NodeFilter.SHOW_TEXT;
+export const START_TO_START = 0; // Range.START_TO_START
+export const START_TO_END = 1;   // Range.START_TO_END
+export const END_TO_END = 2;     // Range.END_TO_END
+export const END_TO_START = 3;   // Range.END_TO_START
 
-var START_TO_START = 0; // Range.START_TO_START
-var START_TO_END = 1;   // Range.START_TO_END
-var END_TO_END = 2;     // Range.END_TO_END
-var END_TO_START = 3;   // Range.END_TO_START
+export const HIGHLIGHT_CLASS = 'highlight';
+export const COLOUR_CLASS = 'colour';
+export const FONT_FAMILY_CLASS = 'font';
+export const FONT_SIZE_CLASS = 'size';
 
-var HIGHLIGHT_CLASS = 'highlight';
-var COLOUR_CLASS = 'colour';
-var FONT_FAMILY_CLASS = 'font';
-var FONT_SIZE_CLASS = 'size';
+export const ZWS = '\u200B';
 
-var ZWS = '\u200B';
+export const win = document.defaultView;
 
-var win = doc.defaultView;
+export const ua = navigator.userAgent;
 
-var ua = navigator.userAgent;
+export const isAndroid = /Android/.test( ua );
+export const isIOS = /iP(?:ad|hone|od)/.test( ua );
+export const isMac = /Mac OS X/.test( ua );
+export const isWin = /Windows NT/.test( ua );
 
-var isAndroid = /Android/.test( ua );
-var isIOS = /iP(?:ad|hone|od)/.test( ua );
-var isMac = /Mac OS X/.test( ua );
-var isWin = /Windows NT/.test( ua );
+export const isGecko = /Gecko\//.test( ua );
+export const isIElt11 = /Trident\/[456]\./.test( ua );
+export const isPresto = !!win.opera;
+export const isEdge = /Edge\//.test( ua );
+export const isWebKit = !isEdge && /WebKit\//.test( ua );
+export const isIE = /Trident\/[4567]\./.test( ua );
 
-var isGecko = /Gecko\//.test( ua );
-var isIElt11 = /Trident\/[456]\./.test( ua );
-var isPresto = !!win.opera;
-var isEdge = /Edge\//.test( ua );
-var isWebKit = !isEdge && /WebKit\//.test( ua );
-var isIE = /Trident\/[4567]\./.test( ua );
+export const ctrlKey = isMac ? 'meta-' : 'ctrl-';
 
-var ctrlKey = isMac ? 'meta-' : 'ctrl-';
+export const useTextFixer = isIElt11 || isPresto;
+export const cantFocusEmptyTextNodes = isIElt11 || isWebKit;
+export const losesSelectionOnBlur = isIElt11;
 
-var useTextFixer = isIElt11 || isPresto;
-var cantFocusEmptyTextNodes = isIElt11 || isWebKit;
-var losesSelectionOnBlur = isIElt11;
-
-var canObserveMutations = typeof MutationObserver !== 'undefined';
-var canWeakMap = typeof WeakMap !== 'undefined';
+export const canObserveMutations = typeof MutationObserver !== 'undefined';
+export const canWeakMap = typeof WeakMap !== 'undefined';
 
 // Use [^ \t\r\n] instead of \S so that nbsp does not count as white-space
-var notWS = /[^ \t\r\n]/;
+export const notWS = /[^ \t\r\n]/;
 
-var indexOf = Array.prototype.indexOf;
+export const indexOf = Array.prototype.indexOf;
 
 // Polyfill for FF3.5
 if ( !Object.create ) {
     Object.create = function ( proto ) {
-        var F = function () {};
+        const F = function () {};
         F.prototype = proto;
         return new F();
     };

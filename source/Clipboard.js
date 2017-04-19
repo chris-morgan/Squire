@@ -1,11 +1,19 @@
-/*jshint strict:false, undef:false, unused:false */
+import {
+    isWin, isEdge, isIOS, isGecko, indexOf, TEXT_NODE,
+} from "./Constants.js";
+import { detach } from "./Node.js";
+import {
+    deleteContentsOfRange,
+    moveRangeBoundariesDownTree, moveRangeBoundariesUpTree,
+    getStartBlockOfRange, getEndBlockOfRange,
+} from "./Range.js";
+import { cleanupBRs } from "./Clean.js";
 
 // The (non-standard but supported enough) innerText property is based on the
 // render tree in Firefox and possibly other browsers, so we must insert the
 // DOM node into the document to ensure the text part is correct.
-var setClipboardData = function ( clipboardData, node, root ) {
-    var body = node.ownerDocument.body;
-    var html, text;
+function setClipboardData ( clipboardData, node, root ) {
+    const body = node.ownerDocument.body;
 
     // Firefox will add an extra new line for BRs at the end of block when
     // calculating innerText, even though they don't actually affect display.
@@ -15,8 +23,8 @@ var setClipboardData = function ( clipboardData, node, root ) {
     node.setAttribute( 'style',
         'position:fixed;overflow:hidden;bottom:100%;right:100%;' );
     body.appendChild( node );
-    html = node.innerHTML;
-    text = node.innerText || node.textContent;
+    const html = node.innerHTML;
+    let text = node.innerText || node.textContent;
 
     // Firefox (and others?) returns unix line endings (\n) even on Windows.
     // If on Windows, normalise to \r\n, since Notepad and some other crappy
@@ -29,14 +37,13 @@ var setClipboardData = function ( clipboardData, node, root ) {
     clipboardData.setData( 'text/plain', text );
 
     body.removeChild( node );
-};
+}
 
-var onCut = function ( event ) {
-    var clipboardData = event.clipboardData;
-    var range = this.getSelection();
-    var root = this._root;
-    var self = this;
-    var startBlock, endBlock, copyRoot, contents, parent, newContents, node;
+export function onCut ( event ) {
+    const { clipboardData } = event;
+    const range = this.getSelection();
+    const root = this._root;
+    const self = this;
 
     // Nothing to do
     if ( range.collapsed ) {
@@ -53,29 +60,29 @@ var onCut = function ( event ) {
     if ( !isEdge && !isIOS && clipboardData ) {
         // Clipboard content should include all parents within block, or all
         // parents up to root if selection across blocks
-        startBlock = getStartBlockOfRange( range, root );
-        endBlock = getEndBlockOfRange( range, root );
-        copyRoot = ( ( startBlock === endBlock ) && startBlock ) || root;
+        const startBlock = getStartBlockOfRange( range, root );
+        const endBlock = getEndBlockOfRange( range, root );
+        const copyRoot = ( ( startBlock === endBlock ) && startBlock ) || root;
         // Extract the contents
-        contents = deleteContentsOfRange( range, root );
+        let contents = deleteContentsOfRange( range, root );
         // Add any other parents not in extracted content, up to copy root
-        parent = range.commonAncestorContainer;
+        let parent = range.commonAncestorContainer;
         if ( parent.nodeType === TEXT_NODE ) {
             parent = parent.parentNode;
         }
         while ( parent && parent !== copyRoot ) {
-            newContents = parent.cloneNode( false );
+            const newContents = parent.cloneNode( false );
             newContents.appendChild( contents );
             contents = newContents;
             parent = parent.parentNode;
         }
         // Set clipboard data
-        node = this.createElement( 'div' );
+        const node = this.createElement( 'div' );
         node.appendChild( contents );
         setClipboardData( clipboardData, node, root );
         event.preventDefault();
     } else {
-        setTimeout( function () {
+        setTimeout( () => {
             try {
                 // If all content removed, ensure div at start of root.
                 self._ensureBottomLine();
@@ -86,13 +93,12 @@ var onCut = function ( event ) {
     }
 
     this.setSelection( range );
-};
+}
 
-var onCopy = function ( event ) {
-    var clipboardData = event.clipboardData;
-    var range = this.getSelection();
-    var root = this._root;
-    var startBlock, endBlock, copyRoot, contents, parent, newContents, node;
+export function onCopy ( event ) {
+    const { clipboardData } = event;
+    let range = this.getSelection();
+    const root = this._root;
 
     // Edge only seems to support setting plain text as of 2016-03-11.
     // Mobile Safari flat out doesn't work:
@@ -100,50 +106,46 @@ var onCopy = function ( event ) {
     if ( !isEdge && !isIOS && clipboardData ) {
         // Clipboard content should include all parents within block, or all
         // parents up to root if selection across blocks
-        startBlock = getStartBlockOfRange( range, root );
-        endBlock = getEndBlockOfRange( range, root );
-        copyRoot = ( ( startBlock === endBlock ) && startBlock ) || root;
+        const startBlock = getStartBlockOfRange( range, root );
+        const endBlock = getEndBlockOfRange( range, root );
+        const copyRoot = ( ( startBlock === endBlock ) && startBlock ) || root;
         // Clone range to mutate, then move up as high as possible without
         // passing the copy root node.
         range = range.cloneRange();
         moveRangeBoundariesDownTree( range );
         moveRangeBoundariesUpTree( range, copyRoot, copyRoot, root );
         // Extract the contents
-        contents = range.cloneContents();
+        let contents = range.cloneContents();
         // Add any other parents not in extracted content, up to copy root
-        parent = range.commonAncestorContainer;
+        let parent = range.commonAncestorContainer;
         if ( parent.nodeType === TEXT_NODE ) {
             parent = parent.parentNode;
         }
         while ( parent && parent !== copyRoot ) {
-            newContents = parent.cloneNode( false );
+            const newContents = parent.cloneNode( false );
             newContents.appendChild( contents );
             contents = newContents;
             parent = parent.parentNode;
         }
         // Set clipboard data
-        node = this.createElement( 'div' );
+        const node = this.createElement( 'div' );
         node.appendChild( contents );
         setClipboardData( clipboardData, node, root );
         event.preventDefault();
     }
-};
+}
 
 // Need to monitor for shift key like this, as event.shiftKey is not available
 // in paste event.
-function monitorShiftKey ( event ) {
+export function monitorShiftKey ( event ) {
     this.isShiftDown = event.shiftKey;
 }
 
-var onPaste = function ( event ) {
-    var clipboardData = event.clipboardData;
-    var items = clipboardData && clipboardData.items;
-    var choosePlain = this.isShiftDown;
-    var fireDrop = false;
-    var hasImage = false;
-    var plainItem = null;
-    var self = this;
-    var l, item, type, types, data;
+export function onPaste ( event ) {
+    const { clipboardData } = event;
+    const items = clipboardData && clipboardData.items;
+    const choosePlain = this.isShiftDown;
+    let self = this;
 
     // Current HTML5 Clipboard interface
     // ---------------------------------
@@ -151,16 +153,16 @@ var onPaste = function ( event ) {
 
     // Edge only provides access to plain text as of 2016-03-11.
     if ( !isEdge && items ) {
+        let hasImage = false;
+        let plainItem = null;
         event.preventDefault();
-        l = items.length;
+        let l = items.length;
         while ( l-- ) {
-            item = items[l];
-            type = item.type;
+            const item = items[l];
+            const type = item.type;
             if ( !choosePlain && type === 'text/html' ) {
                 /*jshint loopfunc: true */
-                item.getAsString( function ( html ) {
-                    self.insertHTML( html, true );
-                });
+                item.getAsString( html => self.insertHTML( html, true ) );
                 /*jshint loopfunc: false */
                 return;
             }
@@ -173,12 +175,11 @@ var onPaste = function ( event ) {
         }
         // Treat image paste as a drop of an image file.
         if ( hasImage ) {
+            let fireDrop = false;
             this.fireEvent( 'dragover', {
                 dataTransfer: clipboardData,
                 /*jshint loopfunc: true */
-                preventDefault: function () {
-                    fireDrop = true;
-                }
+                preventDefault: () => { fireDrop = true; }
                 /*jshint loopfunc: false */
             });
             if ( fireDrop ) {
@@ -187,9 +188,7 @@ var onPaste = function ( event ) {
                 });
             }
         } else if ( plainItem ) {
-            plainItem.getAsString( function ( text ) {
-                self.insertPlainText( text, true );
-            });
+            plainItem.getAsString( text => self.insertPlainText( text, true ) );
         }
         return;
     }
@@ -206,7 +205,7 @@ var onPaste = function ( event ) {
     // an RTF version on the clipboard, but it will also convert to HTML if you
     // let the browser insert the content. I've filed
     // https://bugzilla.mozilla.org/show_bug.cgi?id=1254028
-    types = clipboardData && clipboardData.types;
+    const types = clipboardData && clipboardData.types;
     if ( !isEdge && types && (
             indexOf.call( types, 'text/html' ) > -1 || (
                 !isGecko &&
@@ -219,7 +218,8 @@ var onPaste = function ( event ) {
         // insert plain text instead. On iOS, Facebook (and possibly other
         // apps?) copy links as type text/uri-list, but also insert a **blank**
         // text/plain item onto the clipboard. Why? Who knows.
-        if ( !choosePlain && ( data = clipboardData.getData( 'text/html' ) ) ) {
+        let data = clipboardData.getData( 'text/html' );
+        if ( !choosePlain && data ) {
             this.insertHTML( data, true );
         } else if (
                 ( data = clipboardData.getData( 'text/plain' ) ) ||
@@ -234,16 +234,13 @@ var onPaste = function ( event ) {
 
     this._awaitingPaste = true;
 
-    var body = this._doc.body,
-        range = this.getSelection(),
-        startContainer = range.startContainer,
-        startOffset = range.startOffset,
-        endContainer = range.endContainer,
-        endOffset = range.endOffset;
+    const body = this._doc.body;
+    const range = this.getSelection();
+    const { startContainer, startOffset, endContainer, endOffset } = range;
 
     // We need to position the pasteArea in the visible portion of the screen
     // to stop the browser auto-scrolling.
-    var pasteArea = this.createElement( 'DIV', {
+    let pasteArea = this.createElement( 'DIV', {
         contenteditable: 'true',
         style: 'position:fixed; overflow:hidden; top:0; right:100%; width:1px; height:1px;'
     });
@@ -254,16 +251,15 @@ var onPaste = function ( event ) {
     // A setTimeout of 0 means this is added to the back of the
     // single javascript thread, so it will be executed after the
     // paste event.
-    setTimeout( function () {
+    setTimeout( () => {
         try {
             // IE sometimes fires the beforepaste event twice; make sure it is
             // not run again before our after paste function is called.
             self._awaitingPaste = false;
 
             // Get the pasted content and clean
-            var html = '',
-                next = pasteArea,
-                first, range;
+            let html = '';
+            let next = pasteArea;
 
             // #88: Chrome can apparently split the paste area if certain
             // content is inserted; gather them all up.
@@ -271,7 +267,7 @@ var onPaste = function ( event ) {
                 next = pasteArea.nextSibling;
                 detach( pasteArea );
                 // Safari and IE like putting extra divs around things.
-                first = pasteArea.firstChild;
+                const first = pasteArea.firstChild;
                 if ( first && first === pasteArea.lastChild &&
                         first.nodeName === 'DIV' ) {
                     pasteArea = first;
@@ -279,9 +275,8 @@ var onPaste = function ( event ) {
                 html += pasteArea.innerHTML;
             }
 
-            range = self._createRange(
-                startContainer, startOffset, endContainer, endOffset );
-            self.setSelection( range );
+            self.setSelection( self._createRange(
+                startContainer, startOffset, endContainer, endOffset ) );
 
             if ( html ) {
                 self.insertHTML( html, true );
@@ -290,16 +285,16 @@ var onPaste = function ( event ) {
             self.didError( error );
         }
     }, 0 );
-};
+}
 
 // On Windows you can drag an drop text. We can't handle this ourselves, because
 // as far as I can see, there's no way to get the drop insertion point. So just
 // save an undo state and hope for the best.
-var onDrop = function ( event ) {
-    var types = event.dataTransfer.types;
-    var l = types.length;
-    var hasPlain = false;
-    var hasHTML = false;
+export function onDrop ( event ) {
+    const types = event.dataTransfer.types;
+    let l = types.length;
+    let hasPlain = false;
+    let hasHTML = false;
     while ( l-- ) {
         switch ( types[l] ) {
         case 'text/plain':
@@ -315,4 +310,4 @@ var onDrop = function ( event ) {
     if ( hasHTML || hasPlain ) {
         this.saveUndoState();
     }
-};
+}

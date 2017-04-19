@@ -1,5 +1,3 @@
-/*jshint strict:false */
-
 /*
     Native TreeWalker is buggy in IE and Opera:
     * IE9/10 sometimes throw errors when calling TreeWalker#nextNode or
@@ -11,7 +9,7 @@
     (subset) of the spec in all browsers.
 */
 
-var typeToBitArray = {
+const typeToBitArray = {
     // ELEMENT_NODE
     1: 1,
     // ATTRIBUTE_NODE
@@ -23,96 +21,89 @@ var typeToBitArray = {
     // DOCUMENT_NODE
     9: 256,
     // DOCUMENT_FRAGMENT_NODE
-    11: 1024
+    11: 1024,
 };
 
-function TreeWalker ( root, nodeType, filter ) {
-    this.root = this.currentNode = root;
-    this.nodeType = nodeType;
-    this.filter = filter;
+export default class TreeWalker {
+    constructor( root, nodeType, filter ) {
+        this.root = this.currentNode = root;
+        this.nodeType = nodeType;
+        this.filter = filter;
+    }
+
+    nextNode() {
+        let { currentNode } = this;
+        const { root, nodeType, filter } = this;
+        while ( true ) {
+            let node = currentNode.firstChild;
+            while ( !node && currentNode ) {
+                if ( currentNode === root ) {
+                    break;
+                }
+                node = currentNode.nextSibling;
+                if ( !node ) { currentNode = currentNode.parentNode; }
+            }
+            if ( !node ) {
+                return null;
+            }
+            if ( ( typeToBitArray[ node.nodeType ] & nodeType ) &&
+                    filter( node ) ) {
+                this.currentNode = node;
+                return node;
+            }
+            currentNode = node;
+        }
+    }
+
+    previousNode() {
+        let { currentNode } = this;
+        const { root, nodeType, filter } = this;
+        while ( true ) {
+            if ( currentNode === root ) {
+                return null;
+            }
+            let node = currentNode.previousSibling;
+            if ( node ) {
+                while ( currentNode = node.lastChild ) {
+                    node = currentNode;
+                }
+            } else {
+                node = currentNode.parentNode;
+            }
+            if ( !node ) {
+                return null;
+            }
+            if ( ( typeToBitArray[ node.nodeType ] & nodeType ) &&
+                    filter( node ) ) {
+                this.currentNode = node;
+                return node;
+            }
+            currentNode = node;
+        }
+    }
+
+    // Previous node in post-order.
+    previousPONode() {
+        let { currentNode } = this;
+        const { root, nodeType, filter } = this;
+        while ( true ) {
+            let node = currentNode.lastChild;
+            while ( !node && currentNode ) {
+                if ( currentNode === root ) {
+                    break;
+                }
+                node = currentNode.previousSibling;
+                if ( !node ) { currentNode = currentNode.parentNode; }
+            }
+            if ( !node ) {
+                return null;
+            }
+            if ( ( typeToBitArray[ node.nodeType ] & nodeType ) &&
+                    filter( node ) ) {
+                this.currentNode = node;
+                return node;
+            }
+            currentNode = node;
+        }
+    }
 }
-
-TreeWalker.prototype.nextNode = function () {
-    var current = this.currentNode,
-        root = this.root,
-        nodeType = this.nodeType,
-        filter = this.filter,
-        node;
-    while ( true ) {
-        node = current.firstChild;
-        while ( !node && current ) {
-            if ( current === root ) {
-                break;
-            }
-            node = current.nextSibling;
-            if ( !node ) { current = current.parentNode; }
-        }
-        if ( !node ) {
-            return null;
-        }
-        if ( ( typeToBitArray[ node.nodeType ] & nodeType ) &&
-                filter( node ) ) {
-            this.currentNode = node;
-            return node;
-        }
-        current = node;
-    }
-};
-
-TreeWalker.prototype.previousNode = function () {
-    var current = this.currentNode,
-        root = this.root,
-        nodeType = this.nodeType,
-        filter = this.filter,
-        node;
-    while ( true ) {
-        if ( current === root ) {
-            return null;
-        }
-        node = current.previousSibling;
-        if ( node ) {
-            while ( current = node.lastChild ) {
-                node = current;
-            }
-        } else {
-            node = current.parentNode;
-        }
-        if ( !node ) {
-            return null;
-        }
-        if ( ( typeToBitArray[ node.nodeType ] & nodeType ) &&
-                filter( node ) ) {
-            this.currentNode = node;
-            return node;
-        }
-        current = node;
-    }
-};
-
-// Previous node in post-order.
-TreeWalker.prototype.previousPONode = function () {
-    var current = this.currentNode,
-        root = this.root,
-        nodeType = this.nodeType,
-        filter = this.filter,
-        node;
-    while ( true ) {
-        node = current.lastChild;
-        while ( !node && current ) {
-            if ( current === root ) {
-                break;
-            }
-            node = current.previousSibling;
-            if ( !node ) { current = current.parentNode; }
-        }
-        if ( !node ) {
-            return null;
-        }
-        if ( ( typeToBitArray[ node.nodeType ] & nodeType ) &&
-                filter( node ) ) {
-            this.currentNode = node;
-            return node;
-        }
-        current = node;
-    }
-};

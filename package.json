@@ -4,6 +4,9 @@
   "description": "Squire is an HTML5 rich text editor, which provides powerful cross-browser normalisation, whilst being supremely lightweight and flexible.",
   "main": "build/squire.js",
   "scripts": {
+    "lint": "eslint source",
+    "rollup": "rollup -c",
+    "uglify": "uglifyjs build/squire-raw.js -c passes=2,collapse_vars=true -m -o build/squire.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -24,8 +27,11 @@
   },
   "homepage": "https://github.com/neilj/Squire",
   "devDependencies": {
+    "eslint": "^3.19.0",
     "mocha": "2.2.5",
-    "uglify-js": "^2.4.15",
+    "rollup": "^0.41.6",
+    "rollup-plugin-buble": "^0.15.0",
+    "uglify-js-harmony": "^2.7.5",
     "unexpected": "8.2.0"
   }
 }

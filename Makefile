@@ -1,22 +1,22 @@
-.PHONY: all build clean
+.PHONY: all clean
 
-all: install build
+all: node_modules build build/squire.js build/document.html
 
-install:
-	npm install
+node_modules: package.json yarn.lock
+	yarn
+	touch -c node_modules
 
 clean:
 	rm -rf build
 
-build: build/squire.js build/document.html
+build:
+	mkdir -p build
 
-build/squire-raw.js: source/intro.js source/Constants.js source/TreeWalker.js source/Node.js source/Range.js source/KeyHandlers.js source/Clean.js source/Clipboard.js source/Editor.js source/exports.js source/outro.js
-	mkdir -p $(@D)
-	cat $^ | grep -v '^\/\*jshint' >$@
+build/squire-raw.js: node_modules source/squire.js source/Constants.js source/TreeWalker.js source/Node.js source/Range.js source/KeyHandlers.js source/Clean.js source/Clipboard.js source/Editor.js rollup.config.js | build
+	yarn run rollup
 
 build/squire.js: build/squire-raw.js
-	./node_modules/uglify-js/bin/uglifyjs $^ -c -m -o $@
+	yarn run uglify
 
-build/document.html: source/document.html
-	mkdir -p $(@D)
+build/document.html: source/document.html | build
 	cp $^ $@
